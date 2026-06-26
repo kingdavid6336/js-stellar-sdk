@@ -1,0 +1,67 @@
+import type { HttpClient } from "../http-client/index.js";
+
+export type Id = string | number;
+
+export interface Request<T> {
+  jsonrpc: "2.0";
+  id: Id;
+  method: string;
+  params: T;
+}
+
+export interface Notification<T> {
+  jsonrpc: "2.0";
+  method: string;
+  params?: T;
+}
+
+export type Response<T, E = any> = {
+  jsonrpc: "2.0";
+  id: Id;
+} & ({ error: Error<E> } | { result: T });
+
+export interface Error<E = any> {
+  code: number;
+  message?: string;
+  data?: E;
+}
+
+// Check if the given object X has a field Y, and make that available to
+// typescript typing.
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type -- `{}` is the intended constraint (any non-nullish value with own properties)
+function hasOwnProperty<X extends {}, Y extends PropertyKey>(
+  obj: X,
+  prop: Y,
+): obj is X & Record<Y, unknown> {
+  return Object.prototype.hasOwnProperty.call(obj, prop);
+}
+
+/**
+ * Sends the jsonrpc 'params' as a single 'param' object (no array support).
+ *
+ * @param client - HttpClient instance to use for the request
+ * @param url - URL to the RPC instance
+ * @param method - RPC method name that should be called
+ * @param param - (optional) params that should be supplied to the method
+ * @returns Promise that resolves to the result of type T
+ * @hidden
+ */
+export async function postObject<T>(
+  client: HttpClient,
+  url: string,
+  method: string,
+  param: any = null,
+): Promise<T> {
+  const response = await client.post<Response<T>>(url, {
+    jsonrpc: "2.0",
+    // TODO: Generate a unique request id
+    id: 1,
+    method,
+    params: param,
+  });
+  if (hasOwnProperty(response.data, "error")) {
+    throw response.data.error;
+  } else {
+    return response.data?.result;
+  }
+}
